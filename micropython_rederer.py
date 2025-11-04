@@ -1,5 +1,4 @@
 import framebuf
-import math
 
 pastelColorPallet = [(27,133,184),(90,82,85),(85,158,131),(174,90,65),(195,203,113),(249,107,75),(249,167,143),(195,155,211),(161,126,111)]
 
@@ -21,15 +20,24 @@ def tan(ang):
 def color565(rgb):
     return (rgb[0] & 0xf8) << 8 | (rgb[1] & 0xfc) << 3 | rgb[2] >> 3
 
-def rotPnt(pnt,ang):
-    rotY = getYrot(ang[1]) 
-    rotX = getXrot(ang[0])
-    rot_a = transformVec(rotY[0],rotY[1],rotY[2],rotX[0])
-    rot_b = transformVec(rotY[0],rotY[1],rotY[2],rotX[1])
-    rot_c = transformVec(rotY[0],rotY[1],rotY[2],rotX[2])
-    pnt_out = transformVec(rot_a,rot_b,rot_c,pnt)
-    return pnt_out
-    
+def dot_(a, b):
+    s = 0
+    for i in range(0, len(b)):
+        s += a[i] * b[i]
+    return s
+
+def mul(A, b):
+    return [_dot(row, b) for row in A]
+
+def cross_3d(a,b):
+    return (a[1]*b[2]-a[2]*b[1],-(a[0]*b[2]-a[2]*b[0]),a[0]*b[1]-a[1]*b[0])
+
+def PointsDistance3d(a,b):
+    return ( (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2 )**0.5
+
+def PointsDistanceSQ3d(a,b):
+    return ( (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2 )**0.5
+  
 def getYrot(ang):
     xhat = (cos(ang),0.0,sin(ang))
     yhat = (0.0,1.0,0.0)
@@ -42,30 +50,30 @@ def getXrot(ang):
     zhat = (0.0,sin(ang),cos(ang))
     return (xhat,yhat,zhat)
 
+def rotPnt(pnt,ang):
+    rotY = getYrot(ang[1]) 
+    rotX = getXrot(ang[0])
+    rot_a = transformVec(rotY,rotX[0])
+    rot_b = transformVec(rotY,rotX[1])
+    rot_c = transformVec(rotY,rotX[2])
+    pnt_out = transformVec((rot_a,rot_b,rot_c),pnt)
+    return pnt_out
+
 def rotcamPnt(pnt,ang):
     rotY = getYrot(-ang[1]) 
     rotX = getXrot(-ang[0])
-    rot_a = transformVec(rotX[0],rotX[1],rotX[2],rotY[0])
-    rot_b = transformVec(rotX[0],rotX[1],rotX[2],rotY[1])
-    rot_c = transformVec(rotX[0],rotX[1],rotX[2],rotY[2])
-    pnt_out = transformVec(rot_a,rot_b,rot_c,pnt)
+    rot_a = transformVec(rotX,rotY[0])
+    rot_b = transformVec(rotX,rotY[1])
+    rot_c = transformVec(rotX,rotY[2])
+    pnt_out = transformVec((rot_a,rot_b,rot_c),pnt)
     return pnt_out
 
-def transformVec(xhat,yhat,zhat,pnt):
-    out_x = xhat[0]*pnt[0]+yhat[0]*pnt[1]+zhat[0]*pnt[2]
-    out_y = xhat[1]*pnt[0]+yhat[1]*pnt[1]+zhat[1]*pnt[2]
-    out_z = xhat[2]*pnt[0]+yhat[2]*pnt[1]+zhat[2]*pnt[2]
+def transformVec(hat,pnt):
+    out_x = hat[0][0]*pnt[0]+hat[1][0]*pnt[1]+hat[2][0]*pnt[2]
+    out_y = hat[0][1]*pnt[0]+hat[1][1]*pnt[1]+hat[2][1]*pnt[2]
+    out_z = hat[0][2]*pnt[0]+hat[1][2]*pnt[1]+hat[2][2]*pnt[2]
     #print((out_x,out_y,out_z))
     return (out_x,out_y,out_z)
-    
-def dot_2d(a,b):
-    return (a[0]*b[0] + a[1]*b[1])
-
-def dot_3d(a,b):
-    return (a[0]*b[0] + a[1]*b[1]+ a[2]*b[2])
-
-def cross_3d(a,b):
-    return (a[1]*b[2]-a[2]*b[1],-(a[0]*b[2]-a[2]*b[0]),a[0]*b[1]-a[1]*b[0])
     
 def getperpendicular_clock(a):
     return (a[1],-a[0])
@@ -83,15 +91,13 @@ def verticeToScreen(vertice,ang,pos,screen_size,cam_ang = (0,0)):
         return None
     pixelsPerUnitWorld = screen_size[1]/screenHeightWorld/pnt[2]
     pixelOffset = (pnt[0]*pixelsPerUnitWorld,pnt[1]*pixelsPerUnitWorld)
-
-    
     return ((screen_size[0]/2)+pixelOffset[0],(screen_size[1]/2)+pixelOffset[1])
 
 def getlineX(strt_pnt,slope,y):
     x0,y0 = strt_pnt
     if slope == 0:
         return x0 
-    elif slope == math.inf:
+    elif slope == 9999999999:
         return x0
     else:
         return int(((y-y0)/slope)+x0)
@@ -108,9 +114,7 @@ def transformColor(Color,ilumi):
     #print(Color,' -> ',newColor)
     return tuple(Color)
     
-def PointsDistance3d(a,b):
-    return math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2 )
-    
+
 class line_2d():
     def __init__(self,a,b):
         self.a = a
@@ -119,12 +123,12 @@ class line_2d():
     def isPointOnRightSide(self,pnt):
         ap = (pnt[0]-self.a[0],pnt[1]-self.a[1])
         ab_perp = getperpendicular_clock((self.b[0]-self.a[0],self.b[1]-self.a[1]))
-        return (Dot_2d(ap,ab_perp) >= 0)
+        return (dot_(ap,ab_perp) >= 0)
 
     def getSlope(self):
         subx = (self.a[0] - self.b[0])
         if subx == 0:
-            return math.inf
+            return 9999999999
         return (self.a[1] - self.b[1])/subx
     
 class triangle_2d():
@@ -145,7 +149,7 @@ class triangle_2d():
     def triangleArea(self):
         ac = (self.c[0]-self.a[0],self.c[1]-self.a[1])
         ab_perp = getperpendicular_clock((self.b[0]-self.a[0],self.b[1]-self.a[1]))
-        return dot_2d(ac,ab_perp)
+        return dot_(ac,ab_perp)
         
     def pointInTriangle(self,pnt):        
         max_x = max(self.a[0],self.b[0],self.c[0])
@@ -193,7 +197,7 @@ class triangle_3d():
         self.pos = pos
 
     def facingVectorCheck(self,camNormal):
-        dot = dot_3d(self.getNormal(),camNormal) 
+        dot = dot_(self.getNormal(),camNormal) 
         #print(self.getNormal(),' ',dot)
         return (dot> 0)
         
@@ -202,14 +206,14 @@ class triangle_3d():
         ac = (c[0]-a[0],c[1]-a[1],c[2]-a[2])
         ab = (b[0]-a[0],b[1]-a[1],b[2]-a[2])
         cross = cross_3d(ac,ab)
-        crosslen = math.sqrt(cross[0]**2+cross[1]**2+cross[2]**2)
+        crosslen = (cross[0]**2+cross[1]**2+cross[2]**2)**0.5
         normal = (cross[0]/crosslen,cross[1]/crosslen,cross[2]/crosslen)
         return normal
         
     def getClosestdistance(self,pnt):
         distances = []
         for v in [self.a,self.b,self.c]:
-            distances.append(PointsDistance3d(v,pnt))
+            distances.append(PointsDistanceSQ3d(v,pnt))
         return min(distances)
         
     def getCentroid(self):
@@ -233,7 +237,7 @@ class triangle_3d():
             return None
         lightdirection = (0,0.8,0.2)
         global_ilumi = 0.7
-        ilumi = dot_3d(lightdirection,self.getNormal())
+        ilumi = dot_(lightdirection,self.getNormal())
         ilumi += global_ilumi
         if ilumi < 1:
             ilumi = 1 +ilumi
@@ -260,6 +264,7 @@ class triangle_3d():
         tri_2d = self.trig_3dToTrig_2d(cam_ang,im_size)
         if tri_2d != None:
             tri_2d.render(fbuf,im_size)
+
         
 class model():
     def __init__(self,vertices,faces,tri_indexes,pos=(0,0,0),ang=(0,0),updateVertices = False):
@@ -276,19 +281,12 @@ class model():
         self.triangles = []
         if updateVertices:
             for i in range(len(self.vertices)):
-                #print(": ",self.vertices[i])
                 self.vertices[i] = rotPnt( self.vertices[i],self.ang)
                 self.vertices[i] = posPnt( self.vertices[i],self.pos)
-                #self.vertices[i] = (round(self.vertices[i][0], 2),round(self.vertices[i][1], 2),round(self.vertices[i][2], 2))
-                #print("> ",self.vertices[i])
             self.ang = (0,0)
             self.pos = (0,0,0)
         for j,t_i in enumerate(self.tri_indexes):
-            a = self.vertices[t_i[0]]
-            b = self.vertices[t_i[1]]
-            c = self.vertices[t_i[2]]
-            t = triangle_3d(a,b,c,self.ang,self.pos,color=self.colorPallet[j%len(self.colorPallet)])
-            #print(t.color)
+            t = triangle_3d(self.vertices[t_i[0]],self.vertices[t_i[1]],self.vertices[t_i[2]],self.ang,self.pos,color=self.colorPallet[j%len(self.colorPallet)])
             self.triangles.append(t)    
 
     def setColorPallet(self,colorPallet):
@@ -306,7 +304,8 @@ class model():
         #print(tup_list)
         for tup in tup_list:
             #print(tup[0].facingVectorCheck((0,0,1)))
-            if tup[0].facingVectorCheck((0,0,-1)) or not cameraFacingCheck:
+            camNormal = rotcamPnt((0,0,1),cam_ang)
+            if tup[0].facingVectorCheck(camNormal) and not cameraFacingCheck:
                 tup[0].render(fbuf,im_size,cam_ang)
 
 class multipart_model(model):
